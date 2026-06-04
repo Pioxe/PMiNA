@@ -7,6 +7,7 @@ import time
 import matplotlib.pyplot as plt
 import seaborn as sns
 import torch
+import random
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import TensorDataset, DataLoader
@@ -229,7 +230,56 @@ def plot_single_history_overfitting(history):
     plt.tight_layout()
     plt.show()
 
+def ewaluacja_i_raport_koncowy(zoptymalizowany_model, test_loader, device, history, target_classes=['Zostaje (No)', 'Odchodzi (Yes)']):
+    print("GENEROWANIE RAPORTU KLASYFIKACJI...")
 
+    #  model w tryb testowania
+    zoptymalizowany_model.eval() 
+
+    all_preds = []
+    all_targets = []
+
+    # przewidywania ze zbioru testowego paczka po paczce
+    with torch.no_grad():
+        for inputs, targets in test_loader:
+            inputs = inputs.to(device)
+            
+            # surowe wyniki z modelu
+            outputs = zoptymalizowany_model(inputs)
+            probs = torch.sigmoid(outputs)
+            
+            # JEŻELI model zwraca 2 wyjścia (kształt [Batch, 2]), bierzemy tylko drugą kolumnę (klasa 1)
+            # JEŻELI zwraca 1 wyjście (kształt [Batch, 1]), bierzemy całe wyjście
+            if probs.shape[-1] == 2:
+                probs_class1 = probs[:, 1]
+            else:
+                probs_class1 = probs.squeeze(-1)
+            #Tak, ten klient odejdzie albo Nie, ten klient zostanie
+            # decyzję (0 lub 1) na podstawie progu 0.5
+            preds = (probs_class1 >= 0.5).int()
+            
+            all_preds.extend(preds.cpu().numpy().tolist())
+            all_targets.extend(targets.int().cpu().numpy().tolist())
+
+    print(f"Weryfikacja długości - Prawdziwe etykiety: {len(all_targets)}, Przewidywania: {len(all_preds)}")
+    print("\nRAPORT KLASYFIKACJI (Classification Report) dla modelu zoptymalizowanego:")
+
+    print(classification_report(
+        all_targets, 
+        all_preds, 
+        target_names=['Zostaje (No)', 'Odchodzi (Yes)']
+    ))
+    return all_targets, all_preds
+def ustaw_staly_seed(seed=42):
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)  
+    # Wymuszenie deterministycznego działania algorytmów PyTorch
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+    print(f"Ustawiono stały seed: {seed}. Wyniki będą teraz powtarzalne!")
 
 def main():
     raw_df = wczytanie()
